@@ -13,7 +13,7 @@ pub fn get_info() -> JsonValue {
     return json!({
         "apiversion": "1",
         "author": "",
-        "color": "#888888",
+        "color": "#FF99DD",
         "head": "default",
         "tail": "default",
     });
@@ -28,6 +28,7 @@ pub fn end(game: &Game, _turn: &u32, _board: &Board, _you: &Battlesnake) {
 }
 
 pub fn get_move(game: &Game, _turn: &u32, board: &Board, you: &Battlesnake) -> &'static str {
+    //dbg!(game, board, you);
     let mut possible_moves: HashMap<_, _> = vec![
         ("up", true),
         ("down", true),
@@ -39,15 +40,18 @@ pub fn get_move(game: &Game, _turn: &u32, board: &Board, you: &Battlesnake) -> &
 
     // Step 0: Don't let your Battlesnake move back in on its own neck
     let my_head = &you.head;
-    for body in &you.body {
-        match (body.x as i32 - my_head.x as i32, body.y as i32 - my_head.y as i32) {
-            (-1, 0) => possible_moves.remove("left"),
-            (1, 0) => possible_moves.remove("right"),
-            (0, -1) => possible_moves.remove("down"),
-            (0, 1) => possible_moves.remove("up"),
-            _ => None
-        };
+    for snake in &board.snakes {
+        for body in &snake.body {
+            match (body.x as i32 - my_head.x as i32, body.y as i32 - my_head.y as i32) {
+                (-1, 0) => possible_moves.remove("left"),
+                (1, 0) => possible_moves.remove("right"),
+                (0, -1) => possible_moves.remove("down"),
+                (0, 1) => possible_moves.remove("up"),
+                _ => None
+            };
+        }
     }
+
 
     // TODO: Step 1 - Don't hit walls.
     // Use board information to prevent your Battlesnake from moving beyond the boundaries of the board.
@@ -61,10 +65,10 @@ pub fn get_move(game: &Game, _turn: &u32, board: &Board, you: &Battlesnake) -> &
         possible_moves.remove("right");
     }
     if my_head.y == 0 {
-        possible_moves.remove("up");
+        possible_moves.remove("down");
     }
     if my_head.y == board.height - 1 {
-        possible_moves.remove("down");
+        possible_moves.remove("up");
     }
 
     // TODO: Step 2 - Don't hit yourself.
