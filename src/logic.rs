@@ -27,7 +27,7 @@ pub fn end(game: &Game, _turn: &u32, _board: &Board, _you: &Battlesnake) {
     info!("{} END", game.id);
 }
 
-pub fn get_move(game: &Game, _turn: &u32, _board: &Board, you: &Battlesnake) -> &'static str {
+pub fn get_move(game: &Game, _turn: &u32, board: &Board, you: &Battlesnake) -> &'static str {
     let mut possible_moves: HashMap<_, _> = vec![
         ("up", true),
         ("down", true),
@@ -39,25 +39,33 @@ pub fn get_move(game: &Game, _turn: &u32, _board: &Board, you: &Battlesnake) -> 
 
     // Step 0: Don't let your Battlesnake move back in on its own neck
     let my_head = &you.head;
-    let my_neck = &you.body[1];
-    if my_neck.x < my_head.x {
-        // my neck is left of my head
-        possible_moves.insert("left", false);
-    } else if my_neck.x > my_head.x {
-        // my neck is right of my head
-        possible_moves.insert("right", false);
-    } else if my_neck.y < my_head.y {
-        // my neck is below my head
-        possible_moves.insert("down", false);
-    } else if my_neck.y > my_head.y {
-        // my neck is above my head
-        possible_moves.insert("up", false);
+    for body in &you.body {
+        match (body.x as i32 - my_head.x as i32, body.y as i32 - my_head.y as i32) {
+            (-1, 0) => possible_moves.remove("left"),
+            (1, 0) => possible_moves.remove("right"),
+            (0, -1) => possible_moves.remove("down"),
+            (0, 1) => possible_moves.remove("up"),
+            _ => None
+        };
     }
 
     // TODO: Step 1 - Don't hit walls.
     // Use board information to prevent your Battlesnake from moving beyond the boundaries of the board.
     // board_width = move_req.board.width
     // board_height = move_req.board.height
+
+    if my_head.x == 0 {
+        possible_moves.remove("left");
+    }
+    if my_head.x == board.width - 1 {
+        possible_moves.remove("right");
+    }
+    if my_head.y == 0 {
+        possible_moves.remove("up");
+    }
+    if my_head.y == board.height - 1 {
+        possible_moves.remove("down");
+    }
 
     // TODO: Step 2 - Don't hit yourself.
     // Use body information to prevent your Battlesnake from colliding with itself.
