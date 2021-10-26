@@ -1,10 +1,13 @@
+use std::num::NonZeroUsize;
 use rand::seq::SliceRandom;
 use rocket_contrib::json::JsonValue;
-use std::collections::HashMap;
 
 use log::info;
 
-use crate::{Battlesnake, Board, Game};
+use itertools::Itertools;
+use rand::RngCore;
+
+use crate::{Battlesnake, Board, Game, Move};
 
 pub fn get_info() -> JsonValue {
     info!("INFO");
@@ -27,72 +30,51 @@ pub fn end(game: &Game, _turn: &u32, _board: &Board, _you: &Battlesnake) {
     info!("{} END", game.id);
 }
 
-pub fn get_move(game: &Game, _turn: &u32, board: &Board, you: &Battlesnake) -> &'static str {
-    //dbg!(game, board, you);
-    let mut possible_moves: HashMap<_, _> = vec![
-        ("up", true),
-        ("down", true),
-        ("left", true),
-        ("right", true),
-    ]
-    .into_iter()
-    .collect();
-
-    // Step 0: Don't let your Battlesnake move back in on its own neck
+pub fn fit(_game: &Game, board: &Board, you: &Battlesnake, move_: &Move) -> usize {
     let my_head = &you.head;
+    match move_ {
+        Move::Up if my_head.y == board.height - 1 => return 0,
+        Move::Down if my_head.y == 0 => return 0,
+        Move::Left if my_head.x == 0 => return 0,
+        Move::Right if my_head.x == board.width - 1 => return 0,
+        _ => {}
+    }
     for snake in &board.snakes {
         for body in &snake.body {
-            match (body.x as i32 - my_head.x as i32, body.y as i32 - my_head.y as i32) {
-                (-1, 0) => possible_moves.remove("left"),
-                (1, 0) => possible_moves.remove("right"),
-                (0, -1) => possible_moves.remove("down"),
-                (0, 1) => possible_moves.remove("up"),
-                _ => None
-            };
+            let offset = (
+                body.x as i32 - my_head.x as i32,
+                body.y as i32 - my_head.y as i32,
+            );
+            match (offset, move_) {
+                ((-1, 0), Move::Left) => return 0,
+                ((1, 0), Move::Right) => return 0,
+                ((0, -1), Move::Down) => return 0,
+                ((0, 1), Move::Up) => return 0,
+                _ => {}
+            }
         }
     }
-
-
-    // TODO: Step 1 - Don't hit walls.
-    // Use board information to prevent your Battlesnake from moving beyond the boundaries of the board.
-    // board_width = move_req.board.width
-    // board_height = move_req.board.height
-
-    if my_head.x == 0 {
-        possible_moves.remove("left");
+    let new_head = my_head.advance(move_).unwrap();
+    for food in &board.food {
+        if new_head.x.abs_diff(food.x) + new_head.y.abs_diff(food.y) <= you.health {
+            return usize::MAX;
+        }
     }
-    if my_head.x == board.width - 1 {
-        possible_moves.remove("right");
-    }
-    if my_head.y == 0 {
-        possible_moves.remove("down");
-    }
-    if my_head.y == board.height - 1 {
-        possible_moves.remove("up");
-    }
+    you.health as usize
+}
 
-    // TODO: Step 2 - Don't hit yourself.
-    // Use body information to prevent your Battlesnake from colliding with itself.
-    // body = move_req.body
+pub fn get_move(game: &Game, _turn: &u32, board: &Board, you: &Battlesnake) -> &'static str {
+    //dbg!(game, board, you);
+    let mut moves = [
+        Move::Up,
+        Move::Down,
+        Move::Left,
+        Move::Right,
+    ];
 
-    // TODO: Step 3 - Don't collide with others.
-    // Use snake vector to prevent your Battlesnake from colliding with others.
-    // snakes = move_req.board.snakes
-
-    // TODO: Step 4 - Find food.
-    // Use board information to seek out and find food.
-    // food = move_req.board.food
-
-    // Finally, choose a move from the available safe moves.
-    // TODO: Step 5 - Select a move to make based on strategy, rather than random.
-    let moves = possible_moves
-        .into_iter()
-        .filter(|&(_, v)| v == true)
-        .map(|(k, _)| k)
-        .collect::<Vec<_>>();
-    let chosen = moves.choose(&mut rand::thread_rng()).unwrap();
+    let chosen = moves.into_iter().map(|m| (m, fit(game, board, you, &m), rand::thread_rng().next_u32())).max_by(|a, b| a.1.cmp(&b.1).then(a.2.cmp(&b.2))).unwrap().0;
 
     info!("{} MOVE {}", game.id, chosen);
 
-    return chosen;
+    (&chosen).into()
 }

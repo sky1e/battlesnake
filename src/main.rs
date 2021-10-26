@@ -1,4 +1,5 @@
 #![feature(proc_macro_hygiene, decl_macro)]
+#![feature(int_abs_diff)]
 
 #[macro_use]
 extern crate rocket;
@@ -13,6 +14,7 @@ use serde::{Deserialize, Serialize};
 use serde_json::Value;
 use std::collections::HashMap;
 use std::env;
+use std::fmt::{Display, Formatter};
 
 mod logic;
 
@@ -56,6 +58,47 @@ pub struct Coord {
     y: u32,
 }
 
+impl Coord {
+    pub fn advance(&self, move_: &Move) -> Option<Self> {
+        Some(match move_ {
+            Move::Up => Coord {x: self.x, y: self.y.checked_add(1)?},
+            Move::Down => Coord {x: self.x, y: self.y.checked_sub(1)?},
+            Move::Left => Coord {x: self.x.checked_sub(1)?, y: self.y},
+            Move::Right => Coord {x: self.x.checked_add(1)?, y: self.y},
+        })
+    }
+}
+
+#[derive(Deserialize, Serialize, Debug, Copy, Clone)]
+pub enum Move {
+    Up,
+    Down,
+    Left,
+    Right,
+}
+
+impl Display for Move {
+    fn fmt(&self, f: &mut Formatter<'_>) -> std::fmt::Result {
+        f.write_str(match self {
+            Move::Up => "up",
+            Move::Down => "down",
+            Move::Left => "left",
+            Move::Right => "right",
+        })
+    }
+}
+
+impl From<&Move> for &'static str {
+    fn from(move_: &Move) -> Self {
+        match move_ {
+            Move::Up => "up",
+            Move::Down => "down",
+            Move::Left => "left",
+            Move::Right => "right",
+        }
+    }
+}
+
 #[derive(Deserialize, Serialize, Debug)]
 pub struct GameState {
     game: Game,
@@ -68,8 +111,6 @@ pub struct GameState {
 fn handle_index() -> JsonValue {
     logic::get_info()
 }
-
-
 
 #[post("/start", format = "json", data = "<start_req>")]
 fn handle_start(start_req: Json<GameState>) -> Status {
@@ -105,22 +146,25 @@ fn handle_end(end_req: Json<GameState>) -> Status {
 fn main() {
     let address = "0.0.0.0";
     let env_port = env::var("PORT").ok();
-    let env_port = env_port
-        .as_ref()
-        .map(String::as_str)
-        .unwrap_or("8080");
+    let env_port = env_port.as_ref().map(String::as_str).unwrap_or("8080");
     let port = env_port.parse::<u16>().unwrap();
 
     env_logger::init();
 
     let config = Config::build(Environment::Development)
-      .address(address)
-      .port(port)
-      .finalize()
-      .unwrap();
+        .address(address)
+        .port(port)
+        .finalize()
+        .unwrap();
 
-    info!("Starting Battlesnake Server at http://{}:{}...", address, port);
+    info!(
+        "Starting Battlesnake Server at http://{}:{}...",
+        address, port
+    );
     rocket::custom(config)
-        .mount("/", routes![handle_index, handle_start, handle_move, handle_end])
+        .mount(
+            "/",
+            routes![handle_index, handle_start, handle_move, handle_end],
+        )
         .launch();
 }
